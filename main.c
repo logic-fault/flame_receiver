@@ -1065,11 +1065,12 @@ typedef struct
    unsigned char armed_enabled;
 } lcd_state_t;
 
-lcd_state_t lcd_state = { 1, 0, 1 };
+lcd_state_t lcd_state = { 0, 1, 1 };
 
 const  box_t feed_off_box    = { { 108, 17 } , { 127, 28 } } ;
 const box_t release_on_box = { { 108, 33 } , { 127, 44 } } ;
 const box_t dis_box     = { {   1, 20 } , {  17, 28 } } ;
+const box_t full_box = { { 0, 0, } , {127, 63} };
 
 void setupSpi()
 {
@@ -1124,9 +1125,6 @@ void writeBoxFromGraphics(const box_t * source, const box_t * dest)
 {
   for (unsigned char i = dest->top_left.x; i <= dest->bottom_right.x; i++)
   {
-     sendSpiChar(0x10 | (i >> 4));  // set column no.
-     sendSpiChar(0x00 | (i & 0x0f));// set column no.
-  
      unsigned char page_start = dest->top_left.y / 8;
      unsigned char page_end   = dest->bottom_right.y / 8;
      unsigned char row_number_start_page;
@@ -1219,7 +1217,7 @@ int main( void )
 {
   // Stop watchdog timer to prevent time out reset
   WDTCTL = WDTPW + WDTHOLD;
-  P1DIR  = 0x19;
+  P1DIR  = 0x1f;
   P1OUT  = 0x01; // enable flag for SPI & reset inactive
   for (int i = 0; i < 100; i++);
   
@@ -1230,24 +1228,27 @@ int main( void )
   sendSpiChar(0xb0); // page 0
   // write a block to ram
   
+  writeBoxFromGraphics(&full_box, &full_box);
+  
+  
   while (1)
   {
-      
-      const box_t full_box = { { 0, 0, } , {127, 63} };
-      writeBoxFromGraphics(&full_box, &full_box);
-  
       // if (lcd_state.armed_enabled)
       //{
          //writeBoxFromGraphics(feed_box);
       //}
-  
-      
       
       if (lcd_state.feed_enabled)
          writeBoxFromGraphics( &release_on_box, &feed_off_box );
+      else
+         writeBoxFromGraphics( &feed_off_box, &feed_off_box);
       
-      //if (!lcd_state.release_enabled)
-      //  writeBoxFromGraphics( &feed_off_box, &release_on_box );
+      if (!lcd_state.release_enabled)
+         writeBoxFromGraphics( &feed_off_box, &release_on_box );
+      else
+         writeBoxFromGraphics( &release_on_box, &release_on_box);
+      
+      P1OUT = P1OUT ^ 0x06;
   }
   
   return 0;
