@@ -1228,7 +1228,7 @@ int main( void )
   sendSpiChar(0xb0); // page 0
   // write a block to ram
   
-  writeBoxFromGraphics(&full_box, &full_box);
+ 
   
   
   while (1)
@@ -1238,15 +1238,21 @@ int main( void )
          //writeBoxFromGraphics(feed_box);
       //}
       
+     writeBoxFromGraphics(&full_box, &full_box);
+    
       if (lcd_state.feed_enabled)
          writeBoxFromGraphics( &release_on_box, &feed_off_box );
       else
          writeBoxFromGraphics( &feed_off_box, &feed_off_box);
       
+      /*
       if (!lcd_state.release_enabled)
          writeBoxFromGraphics( &feed_off_box, &release_on_box );
       else
          writeBoxFromGraphics( &release_on_box, &release_on_box);
+      */
+      
+      lcd_state.feed_enabled = !lcd_state.feed_enabled;
       
       P1OUT = P1OUT ^ 0x06;
   }
