@@ -1,6 +1,8 @@
 
 #include "io430.h"
 
+/*
+
 unsigned const char graphics0[] = { 
                               254,
                               242,
@@ -1046,6 +1048,8 @@ unsigned const char * graphics_ptr[] = {graphics0, graphics1, graphics2,
                                         graphics3, graphics4, graphics5,
                                         graphics6, graphics7};
 
+*/
+
 typedef struct
 {
    unsigned char x;
@@ -1123,6 +1127,7 @@ unsigned char LCD_SEGMENTS =   8;
 // boxes must be same size, but we don't check due to code size limitations
 void writeBoxFromGraphics(const box_t * source, const box_t * dest)
 {
+  /*
   for (unsigned char i = dest->top_left.x; i <= dest->bottom_right.x; i++)
   {
      unsigned char page_start = dest->top_left.y / 8;
@@ -1135,7 +1140,7 @@ void writeBoxFromGraphics(const box_t * source, const box_t * dest)
      for (int x = page_start ;  x <= page_end; x++)
      {
         row_number_start_page = 0;
-        row_number_stop_page  = 7;
+        row_number_stop_page  = LCD_SEGMENTS - 1;
        
         sendSpiChar(0xb0 | x); // set page no
         sendSpiChar(0x10 | (i >> 4));  // set column no.
@@ -1194,6 +1199,8 @@ void writeBoxFromGraphics(const box_t * source, const box_t * dest)
         P1OUT &= ~0x08; // lcd a0 pin = 0
      }
   }
+  
+  */
 }
 
  unsigned char lcdInit[] = {
@@ -1256,7 +1263,7 @@ int main( void )
       
       P1OUT = P1OUT ^ 0x06;
   }
-  
+   
   return 0;
 }
 
