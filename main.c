@@ -30,31 +30,89 @@
 #include "radio.h"
 #include "spi.h"
 
-typedef struct
-{
-  unsigned char feed_enabled;
-  unsigned char release_enabled;
-  unsigned char charged;
-} system_state_t;
+typedef enum {STATE_DISARMED,                  // disarmed, possibly charged
+              STATE_UNCHARGED,                 // armed and uncharged
+              STATE_CHARGING,                  // armed and charging
+              STATE_CHARGED,                   // armed and charged
+              STATE_FIRING_REQUESTED,          // armed and firing on next loop
+              STATE_FIRING_WAITING_FOR_CHARGE, // armed, charging before firing
+              STATE_FIRING,                    // armed and firing
+             } system_state_t;
+
+
+system_state_t system_state = STATE_DISARMED;
 
 lcd_state_t lcd_state = { 0, 1, 1 };
 
+void closeValves()
+{
+  // TODO: close valves
+}
+
+void openFeedValve()
+{
+  int x = 0;
+}
+
+void openReleaseValve()
+{
+  int x = 0;
+}
+
+void chargeFillTank()
+{
+  if (system_state == STATE_DISARMED)
+    return;
+  system_state = STATE_CHARGING;
+  
+  closeValves();
+  
+  // start charging
+  openFeedValve();
+  
+  // TODO: create a timer for stopping charge. When stopped state = STATE_CHARGED
+}
+
+void releaseFillTank()
+{
+   if (system_state != STATE_FIRING)
+      return;
+      
+   closeValves();
+   
+   // start firing
+   openReleaseValve();
+   
+   // TODO: create a timer for stopping.  When stopped state = STATE_UNCHARGED
+}
 
 void handleRadioSignal(radio_signal_t sig)
 {
   switch (sig)
   {
-  case SIG_FIRE_START:
-    // ensure fill tank has filled, close fill tank, open release for X seconds
+  case SIG_FIRE_START:          // ensure system charged, close valves, open release for X seconds
+    if (system_state != STATE_CHARGED)
+    {
+      if (system_state != STATE_CHARGING)
+         chargeFillTank();
+      system_state = STATE_FIRING_WAITING_FOR_CHARGE;
+    }
+    else
+      system_state = STATE_FIRING_REQUESTED;
     break;
   case SIG_FIRE_ABORT:
-    // disable timer for release
+      closeValves();
+      if (system_state != STATE_CHARGED)
+         system_state = STATE_UNCHARGED;
     break;
   case SIG_ARM:
     // open fill tank, close after specified time
+    system_state = STATE_UNCHARGED;
     lcd_state.armed_enabled = 1;
     break;
   case SIG_DISARM:
+    closeValves();
+    system_state = STATE_DISARMED;
     // disable timer for release, disable filling of tank or releases
     lcd_state.armed_enabled = 0;
     break;
