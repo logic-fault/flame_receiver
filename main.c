@@ -75,9 +75,11 @@ void chargeFillTank()
 
 void releaseFillTank()
 {
-   if (system_state != STATE_FIRING)
+   if (system_state != STATE_FIRING_REQUESTED)
       return;
-      
+   
+   system_state = STATE_FIRING;   
+   
    closeValves();
    
    // start firing
@@ -171,6 +173,25 @@ int main( void )
   {
      
       handleRadioSignal(checkRadioSignal());
+      
+      switch(system_state)
+      {
+      case STATE_UNCHARGED:
+        chargeFillTank();
+        break;
+      case STATE_FIRING_REQUESTED:
+        releaseFillTank();
+        break;
+      case STATE_CHARGED:
+      case STATE_DISARMED:
+      case STATE_CHARGING:
+      case STATE_FIRING:
+      case STATE_FIRING_WAITING_FOR_CHARGE:
+        // intentional fall-through
+      default:
+        // nothing to do
+        break;
+      }
 
 #ifdef GRAPHICS_ENABLED
       // if (lcd_state.armed_enabled)
