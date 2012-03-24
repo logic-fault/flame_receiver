@@ -1,7 +1,9 @@
 
 #include "io430.h"
 
-/*
+/*#define GRAPHICS_ENABLED*/
+
+#ifdef GRAPHICS_ENABLED
 
 unsigned const char graphics0[] = { 
                               254,
@@ -1048,7 +1050,7 @@ unsigned const char * graphics_ptr[] = {graphics0, graphics1, graphics2,
                                         graphics3, graphics4, graphics5,
                                         graphics6, graphics7};
 
-*/
+#endif /* GRAPHICS_ENABLED */
 
 typedef struct
 {
@@ -1069,12 +1071,36 @@ typedef struct
    unsigned char armed_enabled;
 } lcd_state_t;
 
+typedef struct
+{
+  unsigned char fifo[2];
+  unsigned char status[2];
+} radio_status_t;
+
+
+const int RADIO_SYNC_WORD = 0x77a5;
+
+// latest message sent
+unsigned char radio_msg[4];
+
+radio_status_t radio_status;
+
 lcd_state_t lcd_state = { 0, 1, 1 };
 
 const  box_t feed_off_box    = { { 108, 17 } , { 127, 28 } } ;
 const box_t release_on_box = { { 108, 33 } , { 127, 44 } } ;
 const box_t dis_box     = { {   1, 20 } , {  17, 28 } } ;
 const box_t full_box = { { 0, 0, } , {127, 63} };
+
+typedef enum { DEV_RADIO, DEV_LCD } spi_device_t;
+typedef enum { SIG_NONE = 0,       // no signal received
+               SIG_FIRE_START, // initiate charge or fire sequence
+               SIG_FIRE_ABORT, // stop firing sequence, if in progress
+               SIG_ARM,        // allow firing
+               SIG_DISARM      // disallow firing
+             } radio_signal_t;
+
+unsigned char sendSpiChar(unsigned char c, spi_device_t dev);
 
 void setupSpi()
 {
@@ -1086,10 +1112,80 @@ void setupSpi()
    P1OUT &= ~0x10;
 }
 
-void sendSpiChar(unsigned char c)
+void getRadioStatus(radio_status_t * stat)
+{
+  /* Check radio status for first two bytes, read output on last byte */
+  P1OUT |= 0x10;
+  stat->status[0] = sendSpiChar(0x00, DEV_RADIO);
+  stat->status[1] = sendSpiChar(0x00, DEV_RADIO);
+  
+  // if a fifo interrupt is present (at least 8 bits data available), grab data
+  if ( (stat->status[0] & 0x80) != 0)
+     stat->fifo[0]   = sendSpiChar(0x00, DEV_RADIO);
+  P1OUT &= 0x10;
+  
+  for (int i = 0; i < 10; i++);
+}
+
+radio_signal_t checkRadioSignal()
+{
+  static unsigned char radio_msg[4];
+  static unsigned char msg_write_ptr = 0;
+  getRadioStatus(&radio_status);
+  if ( (radio_status.status[0] & 0x80) != 0)
+  {
+     /// data was valid
+     int y = 1;
+  }
+  else
+    return SIG_NONE;
+}
+
+void setupRadio()
+{
+  
+  getRadioStatus(&radio_status);
+  
+  // 915 MHz band, 200khz bandwith, 8.5pF crystal, crystal always running no low bat or wakeup timer
+  P1OUT |= 0x10;
+  sendSpiChar(0x99, DEV_RADIO);
+  sendSpiChar(0x08, DEV_RADIO);
+  P1OUT &= 0x10;
+  
+  for (int i = 0; i < 10; i++);
+  
+  // frequency setting command, F=255
+  P1OUT |= 0x10;
+  sendSpiChar(0xa0, DEV_RADIO);
+  sendSpiChar(0xff, DEV_RADIO);
+  P1OUT &= 0x10;
+  
+  for (int i = 0; i < 10; i++);
+  
+  // bitrate = 600 bps
+  P1OUT |= 0x10;
+  sendSpiChar(0xc8, DEV_RADIO);
+  sendSpiChar(0xc7, DEV_RADIO);
+  P1OUT &= 0x10;
+  
+  for (int i = 0; i < 10; i++);
+ 
+  // always fill fifo
+  P1OUT |= 0x10;
+  sendSpiChar(0xce, DEV_RADIO);
+  sendSpiChar(0x87, DEV_RADIO); // 8f for always, 87 for sync word
+  P1OUT &= 0x10;
+  
+  for (int i = 0; i < 10; i++);  
+}
+
+unsigned char sendSpiChar(unsigned char c, spi_device_t dev)
 {
    USISRL = c;     // set the output shift register with our 8 bits
-   P1OUT |= 0x10; // Slave_Select_BAR
+   if ( dev == DEV_LCD)
+      P1OUT |= 0x10; // Slave_Select_BAR
+   else
+      P1OUT &= ~0x10;
    USICTL0 &= ~0x01; // break out of reset / disabled state
    int j = 1; // need this or spi will break
    USICNT = 0x08;  // we have 8 bits to send
@@ -1099,23 +1195,16 @@ void sendSpiChar(unsigned char c)
    // disable spi
    USICTL0 |= 0x01;
    //P1OUT &= ~0x10;  // Slave_Select_BAR
-   return;
+   return USISRL;
 }
 
-/*
-void sendSpiString(char * sz)
-{
-   int i = 0;
-   while (*(sz + i)) sendSpiChar(*(sz + i++));
-}
-*/
 
-void sendSpiStringLen(unsigned char * sz, int len)
+void sendSpiStringLen(unsigned char * sz, int len, spi_device_t dev)
 {
   int i = 0;
   for (; len--; len > 0) 
   {
-    sendSpiChar(*(sz + i++));
+    sendSpiChar(*(sz + i++), dev);
     for (int i = 0; i < 32000; i++); 
   }
 }
@@ -1127,7 +1216,7 @@ unsigned char LCD_SEGMENTS =   8;
 // boxes must be same size, but we don't check due to code size limitations
 void writeBoxFromGraphics(const box_t * source, const box_t * dest)
 {
-  /*
+#ifdef GRAPHICS_ENABLED
   for (unsigned char i = dest->top_left.x; i <= dest->bottom_right.x; i++)
   {
      unsigned char page_start = dest->top_left.y / 8;
@@ -1142,9 +1231,9 @@ void writeBoxFromGraphics(const box_t * source, const box_t * dest)
         row_number_start_page = 0;
         row_number_stop_page  = LCD_SEGMENTS - 1;
        
-        sendSpiChar(0xb0 | x); // set page no
-        sendSpiChar(0x10 | (i >> 4));  // set column no.
-        sendSpiChar(0x00 | (i & 0x0f));// set column no.
+        sendSpiChar(0xb0 | x, DEV_LCD); // set page no
+        sendSpiChar(0x10 | (i >> 4), DEV_LCD);  // set column no.
+        sendSpiChar(0x00 | (i & 0x0f), DEV_LCD);// set column no.
         P1OUT |= 0x08; // lcd a0 pin = 1
         unsigned char graph_orig     = graphics_ptr[x][i];
         unsigned char graph_new_full = graph_orig;
@@ -1195,12 +1284,12 @@ void writeBoxFromGraphics(const box_t * source, const box_t * dest)
         
         // combine box graphics with new graphics
         
-        sendSpiChar(graph_new_full);
+        sendSpiChar(graph_new_full, DEV_LCD);
         P1OUT &= ~0x08; // lcd a0 pin = 0
      }
   }
   
-  */
+#endif /* GRAPHICS_ENABLED */
 }
 
  unsigned char lcdInit[] = {
@@ -1230,38 +1319,41 @@ int main( void )
   
   
   setupSpi();
+  setupRadio();
   
-  sendSpiStringLen(lcdInit, 14);
-  sendSpiChar(0xb0); // page 0
+  sendSpiStringLen(lcdInit, 14, DEV_LCD);
+  sendSpiChar(0xb0, DEV_LCD); // page 0
   // write a block to ram
   
+  // initialize the lcd
+  writeBoxFromGraphics(&full_box, &full_box);
  
-  
   
   while (1)
   {
+     
+      checkRadioSignal();
+    
       // if (lcd_state.armed_enabled)
       //{
          //writeBoxFromGraphics(feed_box);
       //}
-      
-     writeBoxFromGraphics(&full_box, &full_box);
     
       if (lcd_state.feed_enabled)
          writeBoxFromGraphics( &release_on_box, &feed_off_box );
       else
          writeBoxFromGraphics( &feed_off_box, &feed_off_box);
       
-      /*
+      
       if (!lcd_state.release_enabled)
          writeBoxFromGraphics( &feed_off_box, &release_on_box );
       else
          writeBoxFromGraphics( &release_on_box, &release_on_box);
-      */
+     
       
-      lcd_state.feed_enabled = !lcd_state.feed_enabled;
-      
-      P1OUT = P1OUT ^ 0x06;
+      // enable to test flipping every cycle
+      //lcd_state.feed_enabled = !lcd_state.feed_enabled;
+      //P1OUT = P1OUT ^ 0x06;
   }
    
   return 0;
