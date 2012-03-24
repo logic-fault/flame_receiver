@@ -1046,4 +1046,9 @@ unsigned const char * graphics_ptr[] = {graphics0, graphics1, graphics2,
                                         graphics3, graphics4, graphics5,
                                         graphics6, graphics7};
 
+const box_t feed_off_box    = { { 108, 17 } , { 127, 28 } } ;
+const box_t release_on_box = { { 108, 33 } , { 127, 44 } } ;
+const box_t dis_box     = { {   1, 20 } , {  17, 28 } } ;
+const box_t full_box = { { 0, 0, } , {127, 63} };
+
 #endif /* LCD_GRAPHICS_ARRAYS_H */
