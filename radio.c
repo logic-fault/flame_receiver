@@ -51,27 +51,26 @@ radio_signal_t checkRadioSignal()
   
   getRadioStatus(&radio_status);
   if ( (radio_status.status[0] & 0x80) != 0)
-     radio_msg[msg_write_ptr++] = radio_status.fifo[0];
+  {
+     radio_msg[msg_write_ptr] = radio_status.fifo[0];
+     
+     // invert odd signal numbers
+     if (msg_write_ptr & 0x01 != 0x00)
+       radio_msg[msg_write_ptr] = ~radio_msg[msg_write_ptr];
+     
+     // check each message is the same
+     if (msg_write_ptr > 0 && radio_msg[msg_write_ptr] != radio_msg[0])
+       msg_write_ptr = 0;
+     else
+       msg_write_ptr++;
+  }
   else
     return SIG_NONE;
   
    if (msg_write_ptr == RADIO_MSG_BUFFER_SIZE)
    {
       msg_write_ptr = 0;
-      unsigned char message_valid = 1;
-      for (int i = 1; i < RADIO_MSG_BUFFER_SIZE; i++)
-      {
-        // invert every other byte
-        if (i & 0x01 != 0x00)
-          radio_msg[i] = ~radio_msg[i];
-        
-        if (radio_msg[i] != radio_msg[0])
-          message_valid = 0;
-      }
-      
-      if (message_valid)
-        return (radio_signal_t)radio_msg[0];
-      
+      return (radio_signal_t)radio_msg[0];
    }
    
    return SIG_NONE;
