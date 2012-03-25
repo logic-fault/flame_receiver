@@ -30,6 +30,9 @@
 #include "radio.h"
 #include "spi.h"
 
+#define P1_FEED_VALVE 2
+#define P1_RELEASE_VALVE 4
+
 typedef enum {STATE_DISARMED,                  // disarmed, possibly charged
               STATE_UNCHARGED,                 // armed and uncharged
               STATE_CHARGING,                  // armed and charging
@@ -46,17 +49,17 @@ lcd_state_t lcd_state = { 0, 1, 1 };
 
 void closeValves()
 {
-  // TODO: close valves
+  P1OUT &= ~(P1_FEED_VALVE | P1_RELEASE_VALVE);
 }
 
 void openFeedValve()
 {
-  int x = 0;
+  P1OUT |= P1_FEED_VALVE;
 }
 
 void openReleaseValve()
 {
-  int x = 0;
+  P1OUT |= P1_RELEASE_VALVE;
 }
 
 #pragma vector=TIMERA0_VECTOR
