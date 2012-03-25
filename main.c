@@ -46,7 +46,7 @@ typedef enum {STATE_DISARMED,                  // disarmed, possibly charged
              } system_state_t;
 
 
-system_state_t system_state = STATE_DISARMED;
+volatile system_state_t system_state = STATE_DISARMED;
 
 lcd_state_t lcd_state = { 0, 1, 1 };
 
@@ -111,7 +111,6 @@ __interrupt void solenoid_timer_isr(void)
   else if (system_state == STATE_FIRING_WAITING_FOR_CHARGE)
   {
     system_state = STATE_FIRING_REQUESTED;
-    return;
   }
   
   else if (system_state == STATE_FIRING)
@@ -227,28 +226,37 @@ int main( void )
   TAR     = 0x00;
   TACCR0  = 0x1000; // for test, count up to
   
-  __bis_SR_register(GIE); // general interrupt enable
-  
   
   for (int i = 0; i < 100; i++);
   
   
   setupSpi();
   setupRadio();
-  
+
+  // initialize the lcd
+#ifdef GRAPHICS_ENABLED  
   sendSpiStringLen(lcdInit, 14, DEV_LCD);
   sendSpiChar(0xb0, DEV_LCD); // page 0
   // write a block to ram
-  
-  // initialize the lcd
-#ifdef GRAPHICS_ENABLED
   writeBoxFromGraphics(&full_box, &full_box);
 #endif
+  
+  __bis_SR_register(GIE); // general interrupt enable
+  
+  handleRadioSignal(SIG_ARM);
+  
+  system_state_t last_state;
+  int j;
   
   while (1)
   {
      
-      handleRadioSignal(checkRadioSignal());
+      //handleRadioSignal(checkRadioSignal());
+      
+      if (last_state != system_state)
+         j = 1;
+      
+      last_state = system_state;
       
       switch(system_state)
       {
