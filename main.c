@@ -59,6 +59,13 @@ void openReleaseValve()
   int x = 0;
 }
 
+#pragma vector=TIMERA0_VECTOR
+__interrupt void TimerA_isr(void)
+{
+  int y = 0;
+  return;
+}
+
 void chargeFillTank()
 {
   if (system_state == STATE_DISARMED)
@@ -154,6 +161,18 @@ int main( void )
   WDTCTL = WDTPW + WDTHOLD;
   P1DIR  = 0x1f;
   P1OUT  = 0x01; // enable flag for SPI & reset inactive
+  
+  // setup solenoid timer
+  // ACLK, /1, Up Mode, ISRs enabled
+  TACTL   = 0x0112; 
+  TACCTL0 = 0x0010; // CCIE enabled
+  TAR     = 0x00;
+  TACCR0  = 0x1000; // for test, count up to
+  
+  __bis_SR_register(GIE); // general interrupt enable
+  
+  while(TAR < 0x0020);
+  
   for (int i = 0; i < 100; i++);
   
   
