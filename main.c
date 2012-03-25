@@ -32,6 +32,7 @@
 
 #define P1_FEED_VALVE 2
 #define P1_RELEASE_VALVE 4
+#define HALF_SECONDS_COUNT 0xf424
 
 int timer_iter;
 
@@ -82,9 +83,13 @@ __interrupt void solenoid_timer_isr(void)
   __bic_SR_register(GIE); // no interrupts
  
   timer_iter--;
+  for (int i = 0; i < 10; i++);
   if (timer_iter > 0)
   {
+     TACTL &= ~0x0030; // halt timer
      TACTL |= TACLR;
+     TACTL   = 0x0112; 
+     TACCTL0 = 0x0010 | 0x00c0; // CCIE enabled, divide ACLK by 8
      TAR = 0x00;
      __bis_SR_register(GIE); // re-enable interrupts
      return;
@@ -92,8 +97,7 @@ __interrupt void solenoid_timer_isr(void)
   
   TACTL &= ~0x0030; // halt timer
   TACTL |= TACLR; // clear the timer
-  
-  // TODO: clear interrupt, turnoff valves, change state
+
   closeValves();
   
   // we were charging, now valves closed and tank pressurized
@@ -131,7 +135,7 @@ void chargeFillTank()
   // start charging
   openFeedValve();
   
-  // TODO: create a timer for stopping charge. When stopped state = STATE_CHARGED
+  solenoid_timer_enable(HALF_SECONDS_COUNT, 1);
 }
 
 void releaseFillTank()
@@ -146,7 +150,7 @@ void releaseFillTank()
    // start firing
    openReleaseValve();
    
-   // TODO: create a timer for stopping.  When stopped state = STATE_UNCHARGED
+   solenoid_timer_enable(HALF_SECONDS_COUNT, 1);
 }
 
 void handleRadioSignal(radio_signal_t sig)
@@ -225,7 +229,6 @@ int main( void )
   
   __bis_SR_register(GIE); // general interrupt enable
   
-  while(TAR < 0x0020);
   
   for (int i = 0; i < 100; i++);
   
