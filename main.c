@@ -62,7 +62,34 @@ void openReleaseValve()
 #pragma vector=TIMERA0_VECTOR
 __interrupt void TimerA_isr(void)
 {
-  int y = 0;
+  
+  // TODO: clear interrupt, turnoff valves, change state
+  closeValves();
+  
+  // we were charging, now valves closed and tank pressurized
+  if (system_state == STATE_CHARGING)
+  {
+    system_state = STATE_CHARGED;
+    return;
+  }
+  
+  
+  // see if we were charging and waiting to fire
+  if (system_state == STATE_FIRING_WAITING_FOR_CHARGE)
+  {
+    system_state = STATE_FIRING_REQUESTED;
+    return;
+  }
+  
+  if (system_state == STATE_FIRING)
+  {
+     system_state = STATE_UNCHARGED;
+     return;
+  }
+  
+  // otherwise something fucked up, should never come here.  Disable unit
+  system_state = STATE_DISARMED;
+  
   return;
 }
 
