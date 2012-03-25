@@ -62,10 +62,23 @@ void openReleaseValve()
   P1OUT |= P1_RELEASE_VALVE;
 }
 
+void solenoid_timer_enable(unsigned int time)
+{
+  // setup solenoid timer
+  // ACLK, /1, Up Mode, ISRs enabled
+  TACTL   = 0x0112; 
+  TACCTL0 = 0x0010; // CCIE enabled
+  TAR     = 0x00;
+  TACCR0  = time; // for test, count up to 
+}
+
 #pragma vector=TIMERA0_VECTOR
-__interrupt void TimerA_isr(void)
+__interrupt void solenoid_timer_isr(void)
 {
   __bic_SR_register(GIE); // no interrupts
+  
+  TACTL &= ~0x0030; // halt timer
+  TACTL |= TACLR; // clear the timer
   
   // TODO: clear interrupt, turnoff valves, change state
   closeValves();
