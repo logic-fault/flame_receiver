@@ -30,8 +30,8 @@
 #include "radio.h"
 #include "spi.h"
 
-#define P1_FEED_VALVE 2
-#define P1_RELEASE_VALVE 4
+#define P1_FEED_VALVE 4
+#define P1_RELEASE_VALVE 2
 #define HALF_SECONDS_COUNT 0xf424
 
 int timer_iter;
@@ -161,7 +161,7 @@ void chargeFillTank()
   // start charging
   openFeedValve();
   
-  solenoid_timer_enable(HALF_SECONDS_COUNT, 1);
+  solenoid_timer_enable(HALF_SECONDS_COUNT, 4);
 }
 
 void releaseFillTank()
@@ -281,6 +281,8 @@ int main( void )
   handleRadioSignal(SIG_ARM);
   
   system_state_t last_state;
+  lcd_state_t last_lcd_state;
+  
   int j;
   
   while (1)
@@ -293,38 +295,69 @@ int main( void )
       switch(getSystemState())
       {
       case STATE_UNCHARGED:
+        lcd_state.feed_enabled = 0;
+        lcd_state.release_enabled = 0;
+        lcd_state.armed_enabled = 1;
         chargeFillTank();
         break;
       case STATE_FIRING_REQUESTED:
+        lcd_state.feed_enabled = 0;
+        lcd_state.release_enabled = 0;
+        lcd_state.armed_enabled = 1;
         releaseFillTank();
         break;
       case STATE_CHARGED:
+        lcd_state.feed_enabled = 0;
+        lcd_state.release_enabled = 0;
+        lcd_state.armed_enabled = 1;
+        break;
       case STATE_DISARMED:
+        lcd_state.feed_enabled = 0;
+        lcd_state.release_enabled = 0;
+        lcd_state.armed_enabled = 0;
+        break;
       case STATE_CHARGING:
+        lcd_state.feed_enabled = 1;
+        lcd_state.release_enabled = 0;
+        lcd_state.armed_enabled = 1;
+        break;
       case STATE_FIRING:
+        lcd_state.feed_enabled = 0;
+        lcd_state.release_enabled = 1;
+        lcd_state.armed_enabled = 1;
+        break;
       case STATE_FIRING_WAITING_FOR_CHARGE:
         // intentional fall-through
+        break;
       default:
         // nothing to do
         break;
       }
 
+      
+      
 #ifdef GRAPHICS_ENABLED
-      // if (lcd_state.armed_enabled)
-      //{
-         //writeBoxFromGraphics(feed_box);
-      //}
+      
+      if (lcd_state.armed_enabled == last_lcd_state.armed_enabled
+      else if (lcd_state.armed_enabled)
+      {
+         //writeBoxFromGraphics(feed_box, );
+      }
     
-      if (lcd_state.feed_enabled)
+      if (lcd_state.feed_enabled == last_lcd_state.feed_enabled);
+      else if (lcd_state.feed_enabled)
          writeBoxFromGraphics( &release_on_box, &feed_off_box );
       else
          writeBoxFromGraphics( &feed_off_box, &feed_off_box);
       
-      
-      if (!lcd_state.release_enabled)
+      if (lcd_state.release_enabled == last_lcd_state.release_enabled);     
+      else if (!lcd_state.release_enabled)
          writeBoxFromGraphics( &feed_off_box, &release_on_box );
       else
          writeBoxFromGraphics( &release_on_box, &release_on_box);
+      
+      last_lcd_state = lcd_state;
+      
 #endif    
       
       // enable to test flipping every cycle
