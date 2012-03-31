@@ -36,7 +36,7 @@
 
 int timer_iter;
 
-typedef enum {STATE_DISARMED,                  // disarmed, possibly charged
+typedef enum {STATE_DISARMED = 0,                  // disarmed, possibly charged
               STATE_UNCHARGED,                 // armed and uncharged
               STATE_CHARGING,                  // armed and charging
               STATE_CHARGED,                   // armed and charged
@@ -47,8 +47,19 @@ typedef enum {STATE_DISARMED,                  // disarmed, possibly charged
 
 
 volatile system_state_t system_state = STATE_DISARMED;
+volatile system_state_t * sp = &system_state;
 
 lcd_state_t lcd_state = { 0, 1, 1 };
+
+void setSystemState(system_state_t state)
+{
+  system_state = state;
+}
+
+system_state_t getSystemState()
+{
+  return system_state;
+}
 
 void closeValves()
 {
@@ -67,6 +78,7 @@ void openReleaseValve()
 
 void solenoid_timer_enable(unsigned int time, unsigned int numTimes) // time in 8 microsecond intervals.  0xffff, 1 = 0.5s
 {
+  __bic_SR_register(GIE); // no interrupts
   // setup solenoid timer
   // ACLK, /1, Up Mode, ISRs enabled
   TACTL   = 0x0112; 
@@ -74,11 +86,24 @@ void solenoid_timer_enable(unsigned int time, unsigned int numTimes) // time in 
   TAR     = 0x00;
   TACCR0  = time; // for test, count up to 
   timer_iter = numTimes;
+  __bis_SR_register(GIE); // interrupt enabled
+}
+
+
+#pragma vector = PORT1_VECTOR, PORT2_VECTOR, USI_VECTOR, ADC10_VECTOR, TIMERA1_VECTOR, WDT_VECTOR, NMI_VECTOR
+__interrupt void default_isr(void)
+{
+  
+  // don't do anything
+  int y = 1;
+  
+  return;
 }
 
 #pragma vector=TIMERA0_VECTOR
 __interrupt void solenoid_timer_isr(void)
 {
+  
   
   __bic_SR_register(GIE); // no interrupts
  
@@ -100,22 +125,24 @@ __interrupt void solenoid_timer_isr(void)
 
   closeValves();
   
+  system_state_t system_state = getSystemState();
+  
   // we were charging, now valves closed and tank pressurized
   if (system_state == STATE_CHARGING)
   {
-    system_state = STATE_CHARGED;
+    setSystemState(STATE_CHARGED);
   }
   
   
   // see if we were charging and waiting to fire
   else if (system_state == STATE_FIRING_WAITING_FOR_CHARGE)
   {
-    system_state = STATE_FIRING_REQUESTED;
+    setSystemState(STATE_FIRING_REQUESTED);
   }
   
   else if (system_state == STATE_FIRING)
   {
-     system_state = STATE_UNCHARGED;
+     setSystemState(STATE_UNCHARGED);
   }
   
   __bis_SR_register(GIE); // re-enable interrupts
@@ -125,9 +152,9 @@ __interrupt void solenoid_timer_isr(void)
 
 void chargeFillTank()
 {
-  if (system_state == STATE_DISARMED)
+  if (getSystemState() == STATE_DISARMED)
     return;
-  system_state = STATE_CHARGING;
+  setSystemState(STATE_CHARGING);
   
   closeValves();
   
@@ -139,10 +166,10 @@ void chargeFillTank()
 
 void releaseFillTank()
 {
-   if (system_state != STATE_FIRING_REQUESTED)
+   if (getSystemState() != STATE_FIRING_REQUESTED)
       return;
    
-   system_state = STATE_FIRING;   
+   setSystemState(STATE_FIRING);
    
    closeValves();
    
@@ -154,6 +181,9 @@ void releaseFillTank()
 
 void handleRadioSignal(radio_signal_t sig)
 {
+  
+  system_state_t system_state = getSystemState();
+  
   switch (sig)
   {
   case SIG_FIRE_START:          // ensure system charged, close valves, open release for X seconds
@@ -161,7 +191,7 @@ void handleRadioSignal(radio_signal_t sig)
     {
       if (system_state != STATE_CHARGING)
          chargeFillTank();
-      system_state = STATE_FIRING_WAITING_FOR_CHARGE;
+      setSystemState(STATE_FIRING_WAITING_FOR_CHARGE);
     }
     else
       system_state = STATE_FIRING_REQUESTED;
@@ -169,16 +199,16 @@ void handleRadioSignal(radio_signal_t sig)
   case SIG_FIRE_ABORT:
       closeValves();
       if (system_state != STATE_CHARGED)
-         system_state = STATE_UNCHARGED;
+         setSystemState(STATE_UNCHARGED);
     break;
   case SIG_ARM:
     // open fill tank, close after specified time
-    system_state = STATE_UNCHARGED;
+    setSystemState(STATE_UNCHARGED);
     lcd_state.armed_enabled = 1;
     break;
   case SIG_DISARM:
     closeValves();
-    system_state = STATE_DISARMED;
+    setSystemState(STATE_DISARMED);
     // disable timer for release, disable filling of tank or releases
     lcd_state.armed_enabled = 0;
     break;
@@ -212,8 +242,13 @@ unsigned char LCD_SEGMENTS =   8;
                              0xaf,
                          };
 
+int reset_count; 
+ 
 int main( void )
 {
+  
+  reset_count++;
+  
   // Stop watchdog timer to prevent time out reset
   WDTCTL = WDTPW + WDTHOLD;
   P1DIR  = 0x1f;
@@ -253,12 +288,9 @@ int main( void )
      
       //handleRadioSignal(checkRadioSignal());
       
-      if (last_state != system_state)
-         j = 1;
-      
-      last_state = system_state;
-      
-      switch(system_state)
+       last_state = getSystemState();
+    
+      switch(getSystemState())
       {
       case STATE_UNCHARGED:
         chargeFillTank();
