@@ -2,10 +2,10 @@
 #define RADIO_H
 
 typedef enum { SIG_NONE = 0,       // no signal received
-               SIG_FIRE_START = 0xe7, // initiate charge or fire sequence
-               SIG_FIRE_ABORT = 0xa4, // stop firing sequence, if in progress
-               SIG_ARM        = 0xb5,        // allow firing
-               SIG_DISARM     = 0x34      // disallow firing
+               SIG_FIRE_START = 0x07, // initiate charge or fire sequence
+               SIG_FIRE_ABORT = 0x09, // stop firing sequence, if in progress
+               SIG_ARM        = 0x05,        // allow firing
+               SIG_DISARM     = 0x03      // disallow firing
              } radio_signal_t;
 
 typedef struct

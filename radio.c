@@ -28,7 +28,9 @@ radio_status_t radio_status;
 // for latest sent message
 const unsigned char RADIO_MSG_BUFFER_SIZE = 4;
 unsigned char radio_msg[4]; // should use the constant above but compiler bitches
-const int RADIO_SYNC_WORD = 0x77a5;
+const unsigned char RADIO_SYNC_WORD = 0x77a5;
+const unsigned char MY_RADIO_NUMBER    = 0x01;  // can be any number gt. 0x0f
+const unsigned char BROADCAST_RADIO_NUMBER = 0x0f;
 
 void getRadioStatus(radio_status_t * stat)
 {
@@ -66,6 +68,11 @@ radio_signal_t checkRadioSignal()
   }
   else
     return SIG_NONE;
+  
+  // see if the message was addressed to either us or broadcasted
+  unsigned char radio_num_rx = (radio_msg[0] & 0xf0) >> 4;
+  if (radio_num_rx != MY_RADIO_NUMBER && radio_num_rx != BROADCAST_RADIO_NUMBER)
+    return SIG_NONE
   
    if (msg_write_ptr == RADIO_MSG_BUFFER_SIZE)
    {
